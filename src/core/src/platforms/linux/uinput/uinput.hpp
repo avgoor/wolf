@@ -47,7 +47,7 @@ using libevdev_ptr = std::shared_ptr<libevdev>;
 std::vector<inputtino::libevdev_event_ptr> fetch_events(const libevdev_ptr &dev, int max_events = 50);
 
 static std::pair<unsigned int, unsigned int> get_major_minor(const std::string &devnode) {
-  struct stat buf {};
+  struct stat buf{};
   if (stat(devnode.c_str(), &buf) == -1) {
     logs::log(logs::warning, "Unable to get stats of {}", devnode);
     return {};
@@ -72,13 +72,22 @@ static std::string gen_udev_hw_db_filename(inputtino::libevdev_uinput_ptr node) 
 }
 
 static std::map<std::string, std::string>
-gen_udev_base_event(const std::string &devnode, const std::string &syspath, const std::string &action = "add") {
+gen_udev_base_event(const std::string &devnode, std::string syspath, const std::string &action = "add") {
   // Get major:minor
   auto [dev_major, dev_minor] = get_major_minor(devnode);
 
   // Current timestamp
   auto now = std::chrono::system_clock::now();
   auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+
+  // DEVPATH must be the sysfs path relative to /sys but WITH the leading slash (e.g. "/devices/.../js0"):
+  // this is what real udev events look like. Modern libudev (systemd) refuses to parse events whose
+  // syspath is not a subdirectory of "/sys/" (see device_set_syspath), so a bare "devices/..." would be
+  // silently dropped by any libudev monitor consumer (Chromium, SDL, libinput, ...).
+  if (!syspath.starts_with('/')) {
+    syspath.insert(syspath.begin(), '/');
+  }
+
   return {
       {"ACTION", action},
       {"SEQNUM", "7"}, // We don't want to keep global state, let's hope it's not used
@@ -111,6 +120,9 @@ static std::map<std::string, std::string> gen_udev_base_device_event(inputtino::
                                                                      const std::string &action = "add") {
   std::string syspath = libevdev_uinput_get_syspath(node.get());
   syspath.erase(0, 4); // Remove leading /sys/ from syspath TODO: what if it's not /sys/?
+  if (!syspath.starts_with('/')) {
+    syspath.insert(syspath.begin(), '/'); // see note in gen_udev_base_event
+  }
   // Current timestamp
   auto now = std::chrono::system_clock::now();
   auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();

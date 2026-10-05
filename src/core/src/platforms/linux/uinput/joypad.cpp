@@ -27,15 +27,21 @@ std::vector<std::pair<std::string, std::vector<std::string>>> XboxOneJoypad::get
   std::vector<std::pair<std::string, std::vector<std::string>>> result;
 
   if (_state->joy.get()) {
-    result.push_back({gen_udev_hw_db_filename(_state->joy),
-                      {"E:ID_INPUT=1",
-                       "E:ID_INPUT_JOYSTICK=1",
-                       "E:ID_BUS=usb",
-                       "G:seat",
-                       "G:uaccess",
-                       "Q:seat",
-                       "Q:uaccess",
-                       "V:1"}});
+    // One entry per node (eventN and jsN): libudev-based consumers (e.g. Chromium's GamepadService)
+    // enumerate devices from the udev database in /run/udev/data and only recognise joysticks
+    // carrying the ID_INPUT_JOYSTICK property; without an entry for the js node the pad is invisible
+    // to them when they start after the pad was plugged.
+    for (const auto &devnode : this->get_nodes()) {
+      result.push_back({gen_udev_hw_db_filename(devnode),
+                        {"E:ID_INPUT=1",
+                         "E:ID_INPUT_JOYSTICK=1",
+                         "E:ID_BUS=usb",
+                         "G:seat",
+                         "G:uaccess",
+                         "Q:seat",
+                         "Q:uaccess",
+                         "V:1"}});
+    }
   }
   return result;
 }
@@ -64,15 +70,18 @@ std::vector<std::pair<std::string, std::vector<std::string>>> SwitchJoypad::get_
   std::vector<std::pair<std::string, std::vector<std::string>>> result;
 
   if (_state->joy.get()) {
-    result.push_back({gen_udev_hw_db_filename(_state->joy),
-                      {"E:ID_INPUT=1",
-                       "E:ID_INPUT_JOYSTICK=1",
-                       "E:ID_BUS=usb",
-                       "G:seat",
-                       "G:uaccess",
-                       "Q:seat",
-                       "Q:uaccess",
-                       "V:1"}});
+    // Same as XboxOneJoypad: one entry per node so that the js node is also tagged ID_INPUT_JOYSTICK
+    for (const auto &devnode : this->get_nodes()) {
+      result.push_back({gen_udev_hw_db_filename(devnode),
+                        {"E:ID_INPUT=1",
+                         "E:ID_INPUT_JOYSTICK=1",
+                         "E:ID_BUS=usb",
+                         "G:seat",
+                         "G:uaccess",
+                         "Q:seat",
+                         "Q:uaccess",
+                         "V:1"}});
+    }
   }
   return result;
 }
